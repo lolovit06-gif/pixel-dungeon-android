@@ -3,21 +3,33 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+
+env:
+  GODOT_VERSION: "4.3"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    container:
+      image: barichello/godot-ci:4.3
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
-
-      - name: Install Godot and Android export templates
-        uses: barichello/godot-ci@v4.3.0
         with:
-          godot-version: 4.3.0
-          export-templates: true
-          android: true
+          lfs: true
+
+      - name: Prepare Godot export templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates
+          mkdir -p ~/.config
+          if [ -d /root/.config/godot ]; then
+            cp -a /root/.config/godot/. ~/.config/godot/
+          fi
+          if [ -d "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" ]; then
+            cp -a "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" ~/.local/share/godot/export_templates/
+          fi
 
       - name: Export Android APK
         run: |
