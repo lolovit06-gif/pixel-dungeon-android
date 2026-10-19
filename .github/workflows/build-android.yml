@@ -20,15 +20,19 @@ jobs:
         with:
           lfs: true
 
-      - name: Prepare Godot export templates
+      - name: Prepare Godot Android environment
         run: |
           mkdir -p ~/.local/share/godot/export_templates
           mkdir -p ~/.config
           if [ -d /root/.config/godot ]; then
-            cp -a /root/.config/godot/. ~/.config/godot/
+            cp -a /root/.config/godot ~/.config/godot
           fi
           if [ -d "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" ]; then
             cp -a "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" ~/.local/share/godot/export_templates/
+          fi
+          touch ~/.config/godot/editor_settings-4.3.tres
+          if ! grep -q '^export/android/java_sdk_path' ~/.config/godot/editor_settings-4.3.tres; then
+            echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> ~/.config/godot/editor_settings-4.3.tres
           fi
 
       - name: Export Android APK
