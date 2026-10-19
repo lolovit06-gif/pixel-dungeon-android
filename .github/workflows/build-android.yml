@@ -20,45 +20,71 @@ jobs:
         with:
           lfs: true
 
-      - name: Prepare Godot Android environment
-        run: |
-          echo "HOME=$HOME"
-          mkdir -p "$HOME/.local/share/godot/export_templates"
-          mkdir -p "$HOME/.config/godot"
-
-          if [ -d /root/.config/godot ]; then
-            cp -a /root/.config/godot/. "$HOME/.config/godot/"
-          fi
-          if [ -d /root/.local/share/godot/export_templates ]; then
-            cp -a /root/.local/share/godot/export_templates/. "$HOME/.local/share/godot/export_templates/"
-          fi
-
-          echo "Installed export templates:"
-          ls -la "$HOME/.local/share/godot/export_templates" || true
-
-          SETTINGS="$HOME/.config/godot/editor_settings-4.3.tres"
-          touch "$SETTINGS"
-          sed -i '/^export\/android\/java_sdk_path =/d' "$SETTINGS"
-          echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> "$SETTINGS"
-
-          echo "HOME=$HOME"
-          echo "Java:"
-          java -version
-          echo "Java SDK directory:"
-          test -d /usr/lib/jvm/java-17-openjdk-amd64
-          echo "Android SDK environment:"
-          env | grep -E '^(ANDROID_HOME|ANDROID_SDK_ROOT|ANDROID_NDK_ROOT)=' || true
-          echo "Godot settings file:"
-          cat "$SETTINGS"
-          echo "Android export preset:"
-          sed -n '1,100p' export_presets.cfg
-
-      - name: Export Android APK
+      - name: Diagnose Android build environment
         shell: bash
         run: |
+          set -eu
+          echo "===== Environment ====="
+          echo "HOME=$HOME"
+          id
+          echo "===== Java ====="
+          command -v java || true
+          java -version || true
+          echo "JAVA_HOME=${JAVA_HOME:-<unset>}"
+          if [ -n "${JAVA_HOME:-}" ]; then ls -ld "$JAVA_HOME" || true; fi
+          echo "===== Android SDK environment variables ====="
+          env | sort | grep -E '^(ANDROID|JAVA_HOME|HOME)=' || true
+          echo "===== Common SDK directories ====="
+          for d in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" /opt/android-sdk /opt/android-sdk-linux /usr/lib/android-sdk /root/Android/Sdk "$HOME/Android/Sdk"; do
+            if [ -n "$d" ] && [ -d "$d" ]; then
+              echo "FOUND SDK DIR: $d"
+              ls -la "$d" | head -40
+              for f in platforms platform-tools build-tools; do
+                if [ -d "$d/$f" ]; then echo "--- $d/$f"; ls -la "$d/$f" | head -25; fi
+              done
+            fi
+          done
+          echo "===== Godot settings locations ====="
+          for d in /root/.config/godot "$HOME/.config/godot"; do
+            if [ -d "$d" ]; then echo "--- $d"; find "$d" -maxdepth 2 -type f -print; fi
+          done
+          echo "===== Export templates ====="
+          find /root/.local/share/godot/export_templates "$HOME/.local/share/godot/export_templates" -maxdepth 2 -type f -print 2>/dev/null | head -80 || true
+          echo "===== ADB ====="
+          command -v adb || true
+          adb version || true
+          adb devices || true
+          echo "===== Godot version ====="
+          godot --version
+
+      - name: Prepare Godot settings
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p "$HOME/.local/share/godot/export_templates" "$HOME/.config/godot"
+          if [ -d /root/.config/godot ] && [ "$HOME/.config/godot" != "/root/.config/godot" ]; then
+            cp -a /root/.config/godot/. "$HOME/.config/godot/"
+          fi
+          if [ -d /root/.local/share/godot/export_templates ] && [ "$HOME/.local/share/godot/export_templates" != "/root/.local/share/godot/export_templates" ]; then
+            cp -a /root/.local/share/godot/export_templates/. "$HOME/.local/share/godot/export_templates/"
+          fi
+          SETTINGS="$HOME/.config/godot/editor_settings-4.3.tres"
+          touch "$SETTINGS"
+          if ! grep -q '^export/android/java_sdk_path' "$SETTINGS"; then
+            echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> "$SETTINGS"
+          fi
+          echo "===== Active Godot settings ====="
+          cat "$SETTINGS"
+
+      - name: Validate Android export preset
+        shell: bash
+        run: |
+          set -eu
           mkdir -p build
-          set -o pipefail
+          godot --headless --editor --path . --quit 2>&1 | tee build/editor-validation.log
+          echo "===== Godot Android export configuration check ====="
           godot --headless --verbose --path . --export-debug "Android" build/PixelDungeon.apk 2>&1 | tee build/export.log
+          test -s build/PixelDungeon.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -68,11 +94,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload export log if build fails
+      - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: Android-export-diagnostics
-          path: build/export.log
+          path: |
+            build/export.log
+            build/editor-validation.log
           if-no-files-found: warn
           retention-days: 7
