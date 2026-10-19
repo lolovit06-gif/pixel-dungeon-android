@@ -1,0 +1,33 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Install Godot and Android export templates
+        uses: barichello/godot-ci@v4.3.0
+        with:
+          godot-version: 4.3.0
+          export-templates: true
+          android: true
+
+      - name: Export Android APK
+        run: |
+          mkdir -p build
+          godot --headless --verbose --path . --export-debug "Android" build/PixelDungeon.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PixelDungeon-Android-APK
+          path: build/PixelDungeon.apk
+          if-no-files-found: error
+          retention-days: 14
