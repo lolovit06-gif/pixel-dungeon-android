@@ -26,9 +26,8 @@ jobs:
           mkdir -p /root/.local/share/godot/export_templates
           mkdir -p /root/.config/godot
 
-          if [ -d "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" ]; then
-            cp -a "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" /root/.local/share/godot/export_templates/
-          fi
+          echo "Installed export templates:"
+          ls -la /root/.local/share/godot/export_templates || true
 
           SETTINGS="/root/.config/godot/editor_settings-4.3.tres"
           touch "$SETTINGS"
