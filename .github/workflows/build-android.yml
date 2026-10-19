@@ -7,7 +7,6 @@ on:
 
 env:
   GODOT_VERSION: "4.3"
-  HOME: /root
 
 jobs:
   build:
@@ -23,13 +22,21 @@ jobs:
 
       - name: Prepare Godot Android environment
         run: |
-          mkdir -p /root/.local/share/godot/export_templates
-          mkdir -p /root/.config/godot
+          echo "HOME=$HOME"
+          mkdir -p "$HOME/.local/share/godot/export_templates"
+          mkdir -p "$HOME/.config/godot"
+
+          if [ -d /root/.config/godot ]; then
+            cp -a /root/.config/godot/. "$HOME/.config/godot/"
+          fi
+          if [ -d /root/.local/share/godot/export_templates ]; then
+            cp -a /root/.local/share/godot/export_templates/. "$HOME/.local/share/godot/export_templates/"
+          fi
 
           echo "Installed export templates:"
-          ls -la /root/.local/share/godot/export_templates || true
+          ls -la "$HOME/.local/share/godot/export_templates" || true
 
-          SETTINGS="/root/.config/godot/editor_settings-4.3.tres"
+          SETTINGS="$HOME/.config/godot/editor_settings-4.3.tres"
           touch "$SETTINGS"
           sed -i '/^export\/android\/java_sdk_path =/d' "$SETTINGS"
           echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> "$SETTINGS"
@@ -47,6 +54,7 @@ jobs:
           sed -n '1,100p' export_presets.cfg
 
       - name: Export Android APK
+        shell: bash
         run: |
           mkdir -p build
           set -o pipefail
